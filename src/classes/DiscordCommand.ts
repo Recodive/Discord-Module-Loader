@@ -10,8 +10,10 @@ import type {
 	ContextMenuInteraction
 } from "discord.js";
 import type { ApplicationCommandTypes } from "discord.js/typings/enums";
-export default class Command extends BaseClass {
-	global = false;
+
+export default class DiscordCommand extends BaseClass {
+	scope: "GLOBAL" | "GUILD" | "UNKNOWN" = "UNKNOWN";
+	guildId?: string;
 	name: string;
 	description: string;
 	defaultPermission?: boolean;

@@ -4,10 +4,18 @@ import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 
-import Command from "./Command";
-import Event from "./Event";
+import DiscordCommand from "./DiscordCommand";
+import DiscordEvent from "./DiscordEvent";
+import DiscordGuild from "./DiscordGuild";
+import DiscordModule from "./DiscordModule";
 
-import type { Client, Interaction, CacheType } from "discord.js";
+import type {
+	Client,
+	Interaction,
+	CacheType,
+	UserApplicationCommandData,
+	ChatInputApplicationCommandData
+} from "discord.js";
 
 export interface ModuleLoaderOptions {
 	disallowedChannelMessage: string;
@@ -20,7 +28,9 @@ export default class DiscordModuleLoader {
 	commandCooldownMessage =
 		"Please wait % seconds before using this command again.";
 
-	commands: Collection<string, Command> = new Collection();
+	commands: Collection<string, DiscordCommand> = new Collection();
+	modules: Collection<string, DiscordModule> = new Collection();
+	guilds: Collection<string, DiscordGuild> = new Collection();
 	cooldowns: Collection<string, Collection<string, number>> = new Collection();
 	log = debug("Discord-Module-Loader");
 
@@ -31,63 +41,229 @@ export default class DiscordModuleLoader {
 		if (options?.commandCooldownMessage)
 			this.commandCooldownMessage = options.commandCooldownMessage;
 
+		client.setMaxListeners(Infinity);
 		client.on("interactionCreate", this.handleInteraction);
 	}
 
-	async loadModule(dir = "modules") {
+	async loadGuilds(dir = "guilds") {
 		dir = resolve(dir);
-		if (!existsSync(dir)) return;
+		if (!existsSync(dir)) return [];
+
+		const guilds = (await readdir(dir)).filter(file => file.endsWith(".js")),
+			log = this.log.extend(basename(dirname(dir)));
+
+		log("Loading %d guilds", guilds.length);
+
+		const returnGuilds: [string, DiscordGuild][] = [];
+		for (const folder of guilds) {
+			if (!existsSync(resolve(dir, folder, "index.js")))
+				throw new Error(`Couldn't find index.js in ${dir}`);
+
+			const guild = (await import(resolve(dir, folder, "index.js"))).default;
+
+			if (!(guild instanceof DiscordGuild))
+				throw new Error(`Guild ${folder} is not an Guild.`);
+
+			if (!this.client.guilds.cache.get(guild.id))
+				throw new Error(`Guild ${guild.id} is not cached.`);
+
+			if (this.guilds.has(guild.id))
+				throw new Error(`Cannot add ${guild.id} more than once.`);
+
+			if (existsSync(resolve(dir, folder, "events")))
+				this.addToColl(
+					guild.events,
+					await this.loadEvents(resolve(dir, folder, "events"))
+				);
+
+			if (existsSync(resolve(dir, folder, "commands")))
+				this.addToColl(
+					guild.commands,
+					await this.loadCommands(resolve(dir, folder, "commands"), guild.id)
+				);
+
+			if (existsSync(resolve(dir, folder, "modules")))
+				this.addToColl(
+					guild.modules,
+					await this.loadModules(resolve(dir, folder, "modules"), guild.id)
+				);
+
+			this.guilds.set(guild.id, guild);
+			returnGuilds.push([guild.id, guild]);
+			log("Loaded guild %s", guild.id);
+		}
+		return returnGuilds;
+	}
+
+	async loadModules(dir = "modules", guildId?: string) {
+		dir = resolve(dir);
+		if (!existsSync(dir)) return [];
+
+		const modules = (await readdir(dir)).filter(file => file.endsWith(".js")),
+			log = this.log.extend(basename(dirname(dir)));
+
+		log("Loading %d modules", modules.length);
+
+		const returnModules: [string, DiscordModule][] = [];
+		for (const folder of modules) {
+			if (!existsSync(resolve(dir, folder, "index.js")))
+				throw new Error(`Couldn't find index.js in ${dir}`);
+
+			const module = (await import(resolve(dir, folder, "index.js"))).default;
+
+			if (!(module instanceof DiscordModule))
+				throw new Error(`Module ${folder} is not an Module`);
+
+			if (this.modules.has(module.name))
+				throw new Error(`Cannot add ${module.name} more than once.`);
+
+			if (existsSync(resolve(dir, folder, "events")))
+				this.addToColl(
+					module.events,
+					await this.loadEvents(resolve(dir, folder, "events"))
+				);
+
+			if (existsSync(resolve(dir, folder, "commands")))
+				this.addToColl(
+					module.commands,
+					await this.loadCommands(resolve(dir, folder, "commands"), guildId)
+				);
+
+			if (existsSync(resolve(dir, folder, "modules")))
+				this.addToColl(
+					module.modules,
+					await this.loadModules(resolve(dir, folder, "modules"))
+				);
+
+			this.modules.set(module.name, module);
+			returnModules.push([module.name, module]);
+			log("Loaded module %s", module.name);
+		}
+		return returnModules;
+	}
+
+	private addToColl(coll: Collection<string, any>, add: [string, any][]) {
+		for (const [key, value] of add) coll.set(key, value);
 	}
 
 	async loadEvents(dir = "events") {
 		dir = resolve(dir);
-		if (!existsSync(dir)) return;
+		if (!existsSync(dir)) return [];
 
 		const events = (await readdir(dir)).filter(file => file.endsWith(".js")),
 			log = this.log.extend(basename(dirname(dir)));
 
 		log("Loading %d events", events.length);
 
+		const returnEvents: [string, DiscordEvent<any>][] = [];
 		for (const file of events) {
 			const event = (await import(resolve(dir, file))).default;
 
-			if (!(event instanceof Event))
+			if (!(event instanceof DiscordEvent))
 				throw new Error(`Event ${file} is not an Event`);
 
 			this.client.on(event.event, event.listener);
+			returnEvents.push([event.event, event]);
 			log("Loaded event %s", event.event);
 		}
+		return returnEvents;
 	}
 
-	async loadCommands(dir = "commands", globalCommands = true) {
+	async loadCommands(dir = "commands", globalCommands: true | string = true) {
 		dir = resolve(dir);
-		if (!existsSync(dir)) return;
+		if (!existsSync(dir)) return [];
 
 		const commands = (await readdir(dir)).filter(file => file.endsWith(".js")),
 			log = this.log.extend(basename(dirname(dir)));
 
 		log("Loading %d commands", commands.length);
 
+		const returnCommands: [string, DiscordCommand][] = [];
 		for (const file of commands) {
 			const command = (await import(resolve(dir, file))).default;
 
-			console.log(command);
-
-			if (!(command instanceof Command))
+			if (!(command instanceof DiscordCommand))
 				throw new Error(`Command ${file} is not a Command`);
-			if (globalCommands) command.global = true;
+
+			if (this.commands.has(command.name.toLowerCase()))
+				throw new Error(`Cannot add ${command.name} more than once.`);
+
+			if (globalCommands === true) command.scope = "GLOBAL";
+			if (globalCommands !== true) {
+				command.scope = "GUILD";
+				command.guildId = globalCommands;
+			}
 
 			this.commands.set(command.name.toLowerCase(), command);
+			returnCommands.push([command.name.toLowerCase(), command]);
 			log("Loaded command %s", command.name);
+		}
+		return returnCommands;
+	}
+
+	async updateSlashCommands() {
+		if (!this.client.isReady()) throw new Error("Client is not ready.");
+
+		const localGlobalCommands = this.commands.filter(c => c.scope === "GLOBAL"),
+			log = this.log.extend("SlashCommands");
+
+		//TODO add guild commands and permissions
+		await this.client.application.commands.set(
+			localGlobalCommands
+				.map(c => {
+					if (c.hasUserCommand)
+						return [
+							this.convertToGlobalCommand(c),
+							this.convertToUserCommand(c)
+						];
+					return [this.convertToGlobalCommand(c)];
+				})
+				.flat()
+		);
+
+		for (const [id, guild] of this.guilds.entries()) {
+			if (!guild.commands.size) return;
+			await this.client.guilds.cache.get(id)!.commands.set(
+				guild.commands
+					.map(c => {
+						if (c.hasUserCommand)
+							return [
+								this.convertToGlobalCommand(c),
+								this.convertToUserCommand(c)
+							];
+						return [this.convertToGlobalCommand(c)];
+					})
+					.flat()
+			);
 		}
 	}
 
-	async updateSlashCommands() {}
+	private convertToUserCommand(
+		command: DiscordCommand
+	): UserApplicationCommandData {
+		return {
+			name: `${command.name.charAt(0).toUpperCase()}${command.name.slice(1)}`,
+			defaultPermission: command.defaultPermission,
+			type: "USER"
+		};
+	}
+
+	private convertToGlobalCommand(
+		command: DiscordCommand
+	): ChatInputApplicationCommandData {
+		return {
+			name: command.name,
+			options: command.options,
+			description: command.description,
+			defaultPermission: command.defaultPermission,
+			type: "CHAT_INPUT"
+		};
+	}
 
 	private async handleInteraction(interaction: Interaction<CacheType>) {
 		if (interaction.isCommand() || interaction.isContextMenu()) {
 			const command = this.commands.get(interaction.commandName.toLowerCase());
-			if (!command) return; //TODO debug or throw error
+			if (!command) return;
 
 			let allowed = true;
 			if (
