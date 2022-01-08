@@ -1,0 +1,1 @@
+{"version":3,"file":"BaseClass.js","sourceRoot":"","sources":["../../src/classes/BaseClass.ts"],"names":[],"mappings":";;AAAA,MAAqB,SAAS;IAA9B;QACC,aAAQ,GAAG,KAAK,CAAC;IAOlB,CAAC;IANA,MAAM;QACL,IAAI,CAAC,QAAQ,GAAG,KAAK,CAAC;IACvB,CAAC;IACD,OAAO;QACN,IAAI,CAAC,QAAQ,GAAG,IAAI,CAAC;IACtB,CAAC;CACD;AARD,4BAQC"}
