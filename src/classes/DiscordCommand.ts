@@ -9,7 +9,6 @@ import type {
 	Snowflake,
 	ContextMenuInteraction
 } from "discord.js";
-import type { ApplicationCommandTypes } from "discord.js/typings/enums";
 
 export default class DiscordCommand extends BaseClass {
 	scope: "GLOBAL" | "GUILD" | "UNKNOWN" = "UNKNOWN";
@@ -17,7 +16,6 @@ export default class DiscordCommand extends BaseClass {
 	name: string;
 	description: string;
 	defaultPermission?: boolean;
-	type?: "CHAT_INPUT" | ApplicationCommandTypes.CHAT_INPUT;
 	options?: ApplicationCommandOptionData[];
 	cooldown?: number;
 	channelAllowlist?: Snowflake[];
@@ -33,7 +31,6 @@ export default class DiscordCommand extends BaseClass {
 		this.name = options.name;
 		this.description = options.description;
 		this.defaultPermission = options.defaultPermission;
-		this.type = options.type;
 		this.options = options.options;
 		this.cooldown = options.cooldown;
 		this.channelAllowlist = options.channelAllowlist;
