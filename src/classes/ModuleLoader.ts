@@ -1,8 +1,8 @@
 import debug from "debug";
-import { Collection } from "discord.js";
-import { existsSync } from "node:fs";
+import { ApplicationCommand, Collection } from "discord.js";
+import { existsSync, lstatSync } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
 import DiscordCommand from "./DiscordCommand";
 import DiscordEvent from "./DiscordEvent";
@@ -42,22 +42,25 @@ export default class DiscordModuleLoader {
 			this.commandCooldownMessage = options.commandCooldownMessage;
 
 		client.setMaxListeners(Infinity);
-		client.on("interactionCreate", this.handleInteraction);
+		client.on("interactionCreate", int => this.handleInteraction(int));
 	}
 
 	async loadGuilds(dir = "guilds") {
 		dir = resolve(dir);
 		if (!existsSync(dir)) return [];
 
-		const guilds = (await readdir(dir)).filter(file => file.endsWith(".js")),
-			log = this.log.extend(basename(dirname(dir)));
+		const guilds = await readdir(dir),
+			log = this.log.extend(basename(dir));
 
-		log("Loading %d guilds", guilds.length);
+		log("Loading %d guilds modules", guilds.length);
 
 		const returnGuilds: [string, DiscordGuild][] = [];
 		for (const folder of guilds) {
+			if (!lstatSync(resolve(dir, folder)).isDirectory())
+				throw new Error(`${folder} is not a directory.`);
+
 			if (!existsSync(resolve(dir, folder, "index.js")))
-				throw new Error(`Couldn't find index.js in ${dir}`);
+				throw new Error(`Couldn't find index.js in ${folder}`);
 
 			const guild = (await import(resolve(dir, folder, "index.js"))).default;
 
@@ -90,7 +93,7 @@ export default class DiscordModuleLoader {
 
 			this.guilds.set(guild.id, guild);
 			returnGuilds.push([guild.id, guild]);
-			log("Loaded guild %s", guild.id);
+			log("Loaded guild module for guild: %s", guild.id);
 		}
 		return returnGuilds;
 	}
@@ -99,15 +102,18 @@ export default class DiscordModuleLoader {
 		dir = resolve(dir);
 		if (!existsSync(dir)) return [];
 
-		const modules = (await readdir(dir)).filter(file => file.endsWith(".js")),
-			log = this.log.extend(basename(dirname(dir)));
+		const modules = await readdir(dir),
+			log = this.log.extend(basename(dir));
 
 		log("Loading %d modules", modules.length);
 
 		const returnModules: [string, DiscordModule][] = [];
 		for (const folder of modules) {
+			if (!lstatSync(resolve(dir, folder)).isDirectory())
+				throw new Error(`${folder} is not a directory.`);
+
 			if (!existsSync(resolve(dir, folder, "index.js")))
-				throw new Error(`Couldn't find index.js in ${dir}`);
+				throw new Error(`Couldn't find index.js in ${folder}`);
 
 			const module = (await import(resolve(dir, folder, "index.js"))).default;
 
@@ -151,7 +157,7 @@ export default class DiscordModuleLoader {
 		if (!existsSync(dir)) return [];
 
 		const events = (await readdir(dir)).filter(file => file.endsWith(".js")),
-			log = this.log.extend(basename(dirname(dir)));
+			log = this.log.extend(basename(dir));
 
 		log("Loading %d events", events.length);
 
@@ -174,7 +180,7 @@ export default class DiscordModuleLoader {
 		if (!existsSync(dir)) return [];
 
 		const commands = (await readdir(dir)).filter(file => file.endsWith(".js")),
-			log = this.log.extend(basename(dirname(dir)));
+			log = this.log.extend(basename(dir));
 
 		log("Loading %d commands", commands.length);
 
@@ -207,8 +213,8 @@ export default class DiscordModuleLoader {
 		const localGlobalCommands = this.commands.filter(c => c.scope === "GLOBAL"),
 			log = this.log.extend("SlashCommands");
 
-		//TODO add guild commands and permissions
-		await this.client.application.commands.set(
+		log("Setting %d global commands...", localGlobalCommands.size);
+		const globalCommands = await this.client.application.commands.set(
 			localGlobalCommands
 				.map(c => {
 					if (c.hasUserCommand)
@@ -221,10 +227,27 @@ export default class DiscordModuleLoader {
 				.flat()
 		);
 
-		for (const [id, guild] of this.guilds.entries()) {
-			if (!guild.commands.size) return;
-			await this.client.guilds.cache.get(id)!.commands.set(
-				guild.commands
+		for (const [id, guild] of this.client.guilds.cache) {
+			const commands: [ApplicationCommand<{}>, DiscordCommand][] =
+					globalCommands
+						.map((c): [ApplicationCommand<{}>, DiscordCommand] => [
+							c,
+							localGlobalCommands.find(
+								g => g.name.toLowerCase() === c.name.toLowerCase()
+							)!
+						])
+						.filter(c => !!c[1].permissions),
+				dGuild = this.guilds.get(id);
+
+			if (dGuild?.commands.size)
+				log(
+					"Setting %d commands for guild %s...",
+					dGuild.commands.size,
+					guild.name
+				);
+
+			const gCommands = await guild.commands.set(
+				dGuild?.commands
 					.map(c => {
 						if (c.hasUserCommand)
 							return [
@@ -233,8 +256,33 @@ export default class DiscordModuleLoader {
 							];
 						return [this.convertToGlobalCommand(c)];
 					})
-					.flat()
+					.flat() ?? []
 			);
+
+			commands.push(
+				...gCommands
+					.map((c): [ApplicationCommand<{}>, DiscordCommand] => [
+						c,
+						dGuild?.commands.find(
+							c => c.name.toLowerCase() === c.name.toLowerCase()
+						)!
+					])
+					.filter(c => !!c[1].permissions)
+			);
+
+			if (commands.length) {
+				log(
+					"Setting permissions for %d commands in guild %s...",
+					commands.length,
+					guild.name
+				);
+				await guild.commands.permissions.set({
+					fullPermissions: commands.map(c => ({
+						id: c[0].id,
+						permissions: c[1].permissions!
+					}))
+				});
+			}
 		}
 	}
 
