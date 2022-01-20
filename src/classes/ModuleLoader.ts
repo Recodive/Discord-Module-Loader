@@ -58,6 +58,13 @@ export default class DiscordModuleLoader {
 		client.on("interactionCreate", int => this.handleInteraction(int));
 	}
 
+	async loadAll() {
+		await this.loadCommands();
+		await this.loadEvents();
+		await this.loadModules();
+		await this.loadGuilds();
+	}
+
 	async loadGuilds(dir = "guilds") {
 		dir = resolve(dir);
 		if (!existsSync(dir)) return [];
