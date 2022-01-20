@@ -35,7 +35,6 @@ export default class DiscordModuleLoader {
 	commandCooldownMessage =
 		"Please wait % seconds before using this command again.";
 
-	events = new Collection<string, DiscordEvent<any>>();
 	commands = new Collection<string, DiscordCommand>();
 	modules = new Collection<string, DiscordModule>();
 	guilds = new Collection<string, DiscordGuild>();
@@ -186,7 +185,6 @@ export default class DiscordModuleLoader {
 				if (!event.disabled) event.listener(...args);
 			});
 
-			this.events.set(event.event, event);
 			returnEvents.push([event.event, event]);
 			log("Loaded event %s", event.event);
 		}
