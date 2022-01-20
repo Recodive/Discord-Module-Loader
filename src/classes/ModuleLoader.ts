@@ -19,23 +19,36 @@ import type {
 } from "discord.js";
 
 export interface ModuleLoaderOptions {
-	disallowedChannelMessage: string;
-	commandCooldownMessage: string;
+	unknownCommandMessage?: string;
+	disabledCommandMessage?: string;
+	disallowedChannelMessage?: string;
+	commandCooldownMessage?: string;
 }
 
 export default class DiscordModuleLoader {
+	unknownCommandMessage =
+		"Couldn't find executed command. Please try again later, or report the issue.";
+	disabledCommandMessage =
+		"This command is currently disabled. Please try again later.";
 	disallowedChannelMessage =
 		"You're not allowed to execute this command in this channel!";
 	commandCooldownMessage =
 		"Please wait % seconds before using this command again.";
 
-	commands: Collection<string, DiscordCommand> = new Collection();
-	modules: Collection<string, DiscordModule> = new Collection();
-	guilds: Collection<string, DiscordGuild> = new Collection();
-	cooldowns: Collection<string, Collection<string, number>> = new Collection();
+	events = new Collection<string, DiscordEvent<any>>();
+	commands = new Collection<string, DiscordCommand>();
+	modules = new Collection<string, DiscordModule>();
+	guilds = new Collection<string, DiscordGuild>();
+	cooldowns = new Collection<string, Collection<string, number>>();
 	log = debug("Discord-Module-Loader");
 
 	constructor(public client: Client, options?: ModuleLoaderOptions) {
+		if (options?.unknownCommandMessage)
+			this.unknownCommandMessage = options.unknownCommandMessage;
+
+		if (options?.disabledCommandMessage)
+			this.disabledCommandMessage = options.disabledCommandMessage;
+
 		if (options?.disallowedChannelMessage)
 			this.disallowedChannelMessage = options.disallowedChannelMessage;
 
@@ -169,7 +182,11 @@ export default class DiscordModuleLoader {
 			if (!(event instanceof DiscordEvent))
 				throw new Error(`Event ${file} is not an Event`);
 
-			this.client.on(event.event, event.listener);
+			this.client.on(event.event, (...args) => {
+				if (!event.disabled) event.listener(...args);
+			});
+
+			this.events.set(event.event, event);
 			returnEvents.push([event.event, event]);
 			log("Loaded event %s", event.event);
 		}
@@ -310,7 +327,17 @@ export default class DiscordModuleLoader {
 	private async handleInteraction(interaction: Interaction<CacheType>) {
 		if (interaction.isCommand() || interaction.isContextMenu()) {
 			const command = this.commands.get(interaction.commandName.toLowerCase());
-			if (!command) return;
+			if (!command)
+				return await interaction.reply({
+					content: this.unknownCommandMessage,
+					ephemeral: true
+				});
+
+			if (command.disabled)
+				return await interaction.reply({
+					content: this.disabledCommandMessage,
+					ephemeral: true
+				});
 
 			let allowed = true;
 			if (
