@@ -11,7 +11,6 @@ import type {
 } from "discord.js";
 
 export default class DiscordCommand extends BaseClass {
-	scope: "GLOBAL" | "GUILD" | "UNKNOWN" = "UNKNOWN";
 	guildId?: string;
 	name: string;
 	description: string;

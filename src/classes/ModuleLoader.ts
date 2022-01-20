@@ -1,7 +1,7 @@
 import debug from "debug";
-import { ApplicationCommand, Collection } from "discord.js";
-import { existsSync, lstatSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { Collection } from "discord.js";
+import { existsSync } from "node:fs";
+import { lstat, readdir } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 
 import DiscordCommand from "./DiscordCommand";
@@ -14,7 +14,8 @@ import type {
 	Interaction,
 	CacheType,
 	UserApplicationCommandData,
-	ChatInputApplicationCommandData
+	ChatInputApplicationCommandData,
+	ApplicationCommand
 } from "discord.js";
 
 export interface ModuleLoaderOptions {
@@ -56,7 +57,7 @@ export default class DiscordModuleLoader {
 
 		const returnGuilds: [string, DiscordGuild][] = [];
 		for (const folder of guilds) {
-			if (!lstatSync(resolve(dir, folder)).isDirectory())
+			if (!(await lstat(resolve(dir, folder))).isDirectory())
 				throw new Error(`${folder} is not a directory.`);
 
 			if (!existsSync(resolve(dir, folder, "index.js")))
@@ -109,7 +110,7 @@ export default class DiscordModuleLoader {
 
 		const returnModules: [string, DiscordModule][] = [];
 		for (const folder of modules) {
-			if (!lstatSync(resolve(dir, folder)).isDirectory())
+			if (!(await lstat(resolve(dir, folder))).isDirectory())
 				throw new Error(`${folder} is not a directory.`);
 
 			if (!existsSync(resolve(dir, folder, "index.js")))
@@ -194,9 +195,7 @@ export default class DiscordModuleLoader {
 			if (this.commands.has(command.name.toLowerCase()))
 				throw new Error(`Cannot add ${command.name} more than once.`);
 
-			if (globalCommands === true) command.scope = "GLOBAL";
 			if (globalCommands !== true) {
-				command.scope = "GUILD";
 				command.guildId = globalCommands;
 			}
 
@@ -210,7 +209,7 @@ export default class DiscordModuleLoader {
 	async updateSlashCommands() {
 		if (!this.client.isReady()) throw new Error("Client is not ready.");
 
-		const localGlobalCommands = this.commands.filter(c => c.scope === "GLOBAL"),
+		const localGlobalCommands = this.commands.filter(c => !c.guildId),
 			log = this.log.extend("SlashCommands");
 
 		log("Setting %d global commands...", localGlobalCommands.size);
