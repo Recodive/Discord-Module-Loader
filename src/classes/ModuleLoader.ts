@@ -89,7 +89,7 @@ export default class DiscordModuleLoader {
 			if (existsSync(resolve(dir, folder, "events")))
 				this.addToColl(
 					guild.events,
-					await this.loadEvents(resolve(dir, folder, "events"))
+					await this.loadEvents(resolve(dir, folder, "events"), guild.id)
 				);
 
 			if (existsSync(resolve(dir, folder, "commands")))
@@ -139,7 +139,7 @@ export default class DiscordModuleLoader {
 			if (existsSync(resolve(dir, folder, "events")))
 				this.addToColl(
 					module.events,
-					await this.loadEvents(resolve(dir, folder, "events"))
+					await this.loadEvents(resolve(dir, folder, "events"), guildId)
 				);
 
 			if (existsSync(resolve(dir, folder, "commands")))
@@ -165,7 +165,7 @@ export default class DiscordModuleLoader {
 		for (const [key, value] of add) coll.set(key, value);
 	}
 
-	async loadEvents(dir = "events") {
+	async loadEvents(dir = "events", guildId?: string) {
 		dir = resolve(dir);
 		if (!existsSync(dir)) return [];
 
@@ -181,8 +181,16 @@ export default class DiscordModuleLoader {
 			if (!(event instanceof DiscordEvent))
 				throw new Error(`Event ${file} is not an Event`);
 
+			if (guildId) event.guildId = guildId;
+
 			this.client.on(event.event, (...args) => {
-				if (!event.disabled) event.listener(...args);
+				if (
+					!event.disabled &&
+					event.guildId &&
+					args[0]?.guild?.id === event.guildId
+				)
+					event.listener(...args);
+				if (!event.disabled && !event.guildId) event.listener(...args);
 			});
 
 			returnEvents.push([event.event, event]);
