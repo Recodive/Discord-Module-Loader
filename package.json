@@ -1,7 +1,7 @@
 {
 	"name": "discord-module-loader",
 	"description": "A package that lets you load events and commands easily and fast.",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"main": "lib/index.js",
 	"repository": "https://github.com/Recodive/Discord-Module-Loader",
 	"author": "Timeraa <me@timeraa.dev>",
@@ -19,5 +19,14 @@
 		"debug": "^4.3.3",
 		"discord.js": "^13.6.0",
 		"source-map-support": "^0.5.21"
-	}
+	},
+	"keywords": [
+		"discord",
+		"discordjs",
+		"module",
+		"loader",
+		"commands",
+		"slash",
+		"slashcommands"
+	]
 }
