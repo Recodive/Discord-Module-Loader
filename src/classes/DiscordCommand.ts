@@ -7,7 +7,8 @@ import type {
 	ChatInputApplicationCommandData,
 	CommandInteraction,
 	Snowflake,
-	ContextMenuInteraction
+	ContextMenuInteraction,
+	AutocompleteInteraction
 } from "discord.js";
 
 export default class DiscordCommand extends BaseClass {
@@ -47,6 +48,9 @@ export interface CommandOptions extends ChatInputApplicationCommandData {
 	permissions?: ApplicationCommandPermissionData[];
 	hasUserCommand?: boolean;
 	execute(
-		interaction: CommandInteraction | ContextMenuInteraction
+		interaction:
+			| CommandInteraction
+			| ContextMenuInteraction
+			| AutocompleteInteraction
 	): Awaitable<void>;
 }
