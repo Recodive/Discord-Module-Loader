@@ -1,5 +1,5 @@
 import debug from "debug";
-import { Collection } from "discord.js";
+import { Collection, Snowflake } from "discord.js";
 import { existsSync } from "node:fs";
 import { lstat, readdir } from "node:fs/promises";
 import { basename, resolve } from "node:path";
@@ -93,6 +93,9 @@ export default class DiscordModuleLoader {
 			if (this.guilds.has(guild.id))
 				throw new Error(`Cannot add ${guild.id} more than once.`);
 
+			this.guilds.set(guild.id, guild);
+			returnGuilds.push([guild.id, guild]);
+
 			if (existsSync(resolve(dir, folder, "events")))
 				this.addToColl(
 					guild.events,
@@ -111,8 +114,6 @@ export default class DiscordModuleLoader {
 					await this.loadModules(resolve(dir, folder, "modules"), guild.id)
 				);
 
-			this.guilds.set(guild.id, guild);
-			returnGuilds.push([guild.id, guild]);
 			log("Loaded guild module for guild: %s", guild.id);
 		}
 		return returnGuilds;
@@ -188,7 +189,11 @@ export default class DiscordModuleLoader {
 			if (!(event instanceof DiscordEvent))
 				throw new Error(`Event ${file} is not an Event`);
 
-			if (guildId) event.guildId = guildId;
+			if (guildId) {
+				this.guilds.get(guildId)!.events.set(event.event, event);
+
+				event.guildId = guildId;
+			}
 
 			this.client.on(event.event, (...args) => {
 				if (
@@ -206,7 +211,7 @@ export default class DiscordModuleLoader {
 		return returnEvents;
 	}
 
-	async loadCommands(dir = "commands", globalCommands: true | string = true) {
+	async loadCommands(dir = "commands", guildId?: Snowflake) {
 		dir = resolve(dir);
 		if (!existsSync(dir)) return [];
 
@@ -225,8 +230,12 @@ export default class DiscordModuleLoader {
 			if (this.commands.has(command.name.toLowerCase()))
 				throw new Error(`Cannot add ${command.name} more than once.`);
 
-			if (globalCommands !== true) {
-				command.guildId = globalCommands;
+			if (guildId) {
+				this.guilds
+					.get(guildId)!
+					.commands.set(command.name.toLowerCase(), command);
+
+				command.guildId = guildId;
 			}
 
 			this.commands.set(command.name.toLowerCase(), command);
@@ -338,6 +347,18 @@ export default class DiscordModuleLoader {
 	}
 
 	private async handleInteraction(interaction: Interaction<CacheType>) {
+		if (interaction.isAutocomplete()) {
+			const command = this.commands.get(interaction.commandName.toLowerCase());
+
+			if (!command) return await interaction.respond([]);
+
+			try {
+				await command.execute(interaction);
+			} catch (err) {
+				console.error(err);
+			}
+		}
+
 		if (interaction.isCommand() || interaction.isContextMenu()) {
 			const command = this.commands.get(interaction.commandName.toLowerCase());
 			if (!command)

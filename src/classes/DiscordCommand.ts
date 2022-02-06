@@ -23,7 +23,10 @@ export default class DiscordCommand extends BaseClass {
 	permissions?: ApplicationCommandPermissionData[];
 	hasUserCommand?: boolean;
 	execute: (
-		interaction: CommandInteraction | ContextMenuInteraction
+		interaction:
+			| CommandInteraction
+			| ContextMenuInteraction
+			| AutocompleteInteraction
 	) => Awaitable<void>;
 
 	constructor(options: CommandOptions) {
