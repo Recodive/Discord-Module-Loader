@@ -8,7 +8,14 @@ export default class DiscordModule {
 	events = new Collection<string, DiscordEvent<any>>();
 	commands = new Collection<string, DiscordCommand>();
 	modules = new Collection<string, DiscordModule>();
-	constructor(public name: string) {}
+
+	constructor(
+		public name: string,
+		public callback?: () => any,
+		options?: { disabled: boolean }
+	) {
+		if (options?.disabled) this.disable();
+	}
 
 	enable() {
 		this.disabled = false;

@@ -87,6 +87,9 @@ export default class DiscordModuleLoader {
 			if (!(guild instanceof DiscordGuild))
 				throw new Error(`Guild ${folder} is not an Guild.`);
 
+			//* Guild disabled, continue
+			if (guild.disabled) continue;
+
 			if (!this.client.guilds.cache.get(guild.id))
 				throw new Error(`Guild ${guild.id} is not cached.`);
 
@@ -113,6 +116,8 @@ export default class DiscordModuleLoader {
 					guild.modules,
 					await this.loadModules(resolve(dir, folder, "modules"), guild.id)
 				);
+
+			if (guild.callback) await guild.callback();
 
 			log("Loaded guild module for guild: %s", guild.id);
 		}
@@ -141,6 +146,9 @@ export default class DiscordModuleLoader {
 			if (!(module instanceof DiscordModule))
 				throw new Error(`Module ${folder} is not an Module`);
 
+			//* Module disabled, continue
+			if (module.disabled) continue;
+
 			if (this.modules.has(module.name))
 				throw new Error(`Cannot add ${module.name} more than once.`);
 
@@ -161,6 +169,8 @@ export default class DiscordModuleLoader {
 					module.modules,
 					await this.loadModules(resolve(dir, folder, "modules"))
 				);
+
+			if (module.callback) await module.callback();
 
 			this.modules.set(module.name, module);
 			returnModules.push([module.name, module]);

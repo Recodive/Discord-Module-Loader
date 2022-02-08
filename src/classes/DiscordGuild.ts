@@ -11,7 +11,13 @@ export default class DiscordGuild {
 	events = new Collection<string, DiscordEvent<any>>();
 	commands = new Collection<string, DiscordCommand>();
 	modules = new Collection<string, DiscordModule>();
-	constructor(public id: Snowflake) {}
+	constructor(
+		public id: Snowflake,
+		public callback?: () => any,
+		options?: { disabled: boolean }
+	) {
+		if (options?.disabled) this.disable();
+	}
 
 	enable() {
 		this.disabled = false;
