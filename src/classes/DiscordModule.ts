@@ -1,4 +1,4 @@
-import { Collection } from "discord.js";
+import { Awaitable, Collection } from "discord.js";
 
 import type DiscordCommand from "./DiscordCommand";
 import type DiscordEvent from "./DiscordEvent";
@@ -11,7 +11,7 @@ export default class DiscordModule {
 
 	constructor(
 		public name: string,
-		public callback?: () => any,
+		public callback?: Awaitable<any>,
 		options?: { disabled: boolean }
 	) {
 		if (options?.disabled) this.disable();

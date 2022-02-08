@@ -27,7 +27,7 @@ export default class DiscordCommand extends BaseClass {
 			| CommandInteraction
 			| ContextMenuInteraction
 			| AutocompleteInteraction
-	) => () => any;
+	) => Awaitable<any>;
 
 	constructor(options: CommandOptions) {
 		super();
@@ -55,5 +55,5 @@ export interface CommandOptions extends ChatInputApplicationCommandData {
 			| CommandInteraction
 			| ContextMenuInteraction
 			| AutocompleteInteraction
-	): () => any;
+	): Awaitable<any>;
 }

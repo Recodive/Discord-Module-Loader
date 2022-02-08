@@ -1,4 +1,4 @@
-import { Collection } from "discord.js";
+import { Awaitable, Collection } from "discord.js";
 
 import type DiscordCommand from "./DiscordCommand";
 import type DiscordEvent from "./DiscordEvent";
@@ -13,7 +13,7 @@ export default class DiscordGuild {
 	modules = new Collection<string, DiscordModule>();
 	constructor(
 		public id: Snowflake,
-		public callback?: () => any,
+		public callback?: Awaitable<any>,
 		options?: { disabled: boolean }
 	) {
 		if (options?.disabled) this.disable();

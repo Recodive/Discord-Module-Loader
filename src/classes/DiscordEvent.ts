@@ -8,7 +8,7 @@ export default class DiscordEvent<
 	guildId?: string;
 	constructor(
 		public event: K,
-		public listener: (...args: ClientEvents[K]) => () => any
+		public listener: (...args: ClientEvents[K]) => Awaitable<any>
 	) {
 		super();
 	}
