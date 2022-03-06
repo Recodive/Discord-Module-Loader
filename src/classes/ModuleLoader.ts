@@ -345,7 +345,7 @@ export default class DiscordModuleLoader {
 					.map((c): [ApplicationCommand<{}>, DiscordCommand] => [
 						c,
 						dGuild?.commands.find(
-							c => c.name.toLowerCase() === c.name.toLowerCase()
+							g => g.name.toLowerCase() === c.name.toLowerCase()
 						)!
 					])
 					.filter(c => !!c[1].permissions)
