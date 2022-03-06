@@ -221,12 +221,24 @@ export default class DiscordModuleLoader {
 		return returnEvents;
 	}
 
-	async loadCommands(dir = "commands", guildId?: Snowflake) {
+	async loadCommands(
+		dir = "commands",
+		guildId?: Snowflake,
+		subDirectoryOf?: string
+	) {
 		dir = resolve(dir);
 		if (!existsSync(dir)) return [];
 
-		const commands = (await readdir(dir)).filter(file => file.endsWith(".js")),
-			log = this.log.extend(basename(dir));
+		const directory = await readdir(dir, { withFileTypes: true }),
+			commands = directory
+				.filter(file => file.isFile() && file.name.endsWith(".js"))
+				.map(f => f.name),
+			subDirectories = directory
+				.filter(file => file.isDirectory())
+				.map(f => f.name),
+			log = subDirectoryOf
+				? this.log.extend(subDirectoryOf).extend(basename(dir))
+				: this.log.extend(basename(dir));
 
 		log("Loading %d commands", commands.length);
 
@@ -252,6 +264,19 @@ export default class DiscordModuleLoader {
 			returnCommands.push([command.name.toLowerCase(), command]);
 			log("Loaded command %s", command.name);
 		}
+
+		if (!subDirectoryOf) {
+			log("Loading %s sub-directories", subDirectories.length);
+			for (const subDirectory of subDirectories)
+				returnCommands.push(
+					...(await this.loadCommands(
+						resolve(dir, subDirectory),
+						guildId,
+						basename(dir)
+					))
+				);
+		}
+
 		return returnCommands;
 	}
 
