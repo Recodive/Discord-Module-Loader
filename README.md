@@ -80,6 +80,8 @@ export default new DiscordCommand({
 });
 ```
 
+You may export a function that returns the DiscordCommand instance.
+
 In the `DiscordCommand` class you have to pass an object with the following arguments:
 
 | Argument            | Description                                                                     | Required | Type                                                                                                                               |
@@ -109,6 +111,8 @@ export default new DiscordEvent("messageCreate", message => {
 });
 ```
 
+You may export a function that returns the DiscordEvent instance.
+
 `"messageCreate"` can be changed for any event name just like the `message` variable can be changed to the incoming data of the event.
 
 #### `modules` folder
@@ -133,6 +137,8 @@ import { DiscordModule } from "discord-module-loader";
 export default new DiscordModule("<module name>");
 ```
 
+You may export a function that returns the DiscordModule instance.
+
 In the `DiscordModule` class you only have to specify the name you want the module to have.
 
 #### `guilds` folder
@@ -156,6 +162,8 @@ import { DiscordGuild } from "discord-module-loader";
 
 export default new DiscordGuild("<guildId>");
 ```
+
+You may export a function that returns the DiscordGuild instance.
 
 In the `DiscordGuild` class you only have the specify the guildId wherein the commands, events, and modules should work.
 

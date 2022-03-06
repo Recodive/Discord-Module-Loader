@@ -82,7 +82,9 @@ export default class DiscordModuleLoader {
 			if (!existsSync(resolve(dir, folder, "index.js")))
 				throw new Error(`Couldn't find index.js in ${folder}`);
 
-			const guild = (await import(resolve(dir, folder, "index.js"))).default;
+			let guild = (await import(resolve(dir, folder, "index.js"))).default;
+
+			if (typeof guild === "function") guild = await guild();
 
 			if (!(guild instanceof DiscordGuild))
 				throw new Error(`Guild ${folder} is not an Guild.`);
@@ -141,7 +143,9 @@ export default class DiscordModuleLoader {
 			if (!existsSync(resolve(dir, folder, "index.js")))
 				throw new Error(`Couldn't find index.js in ${folder}`);
 
-			const module = (await import(resolve(dir, folder, "index.js"))).default;
+			let module = (await import(resolve(dir, folder, "index.js"))).default;
+
+			if (typeof module === "function") module = await module();
 
 			if (!(module instanceof DiscordModule))
 				throw new Error(`Module ${folder} is not an Module`);
@@ -194,7 +198,9 @@ export default class DiscordModuleLoader {
 
 		const returnEvents: [string, DiscordEvent<any>][] = [];
 		for (const file of events) {
-			const event = (await import(resolve(dir, file))).default;
+			let event = (await import(resolve(dir, file))).default;
+
+			if (typeof event === "function") event = await event();
 
 			if (!(event instanceof DiscordEvent))
 				throw new Error(`Event ${file} is not an Event`);
@@ -244,7 +250,9 @@ export default class DiscordModuleLoader {
 
 		const returnCommands: [string, DiscordCommand][] = [];
 		for (const file of commands) {
-			const command = (await import(resolve(dir, file))).default;
+			let command = (await import(resolve(dir, file))).default;
+
+			if (typeof command === "function") command = await command();
 
 			if (!(command instanceof DiscordCommand))
 				throw new Error(`Command ${file} is not a Command`);
