@@ -1,7 +1,7 @@
 {
 	"name": "discord-module-loader",
 	"description": "A package that lets you load events and commands easily and fast.",
-	"version": "1.2.1",
+	"version": "1.3.0",
 	"main": "lib/index.js",
 	"repository": "https://github.com/Recodive/Discord-Module-Loader",
 	"author": "Timeraa <me@timeraa.dev>",
