@@ -9,14 +9,7 @@ import DiscordEvent from "./DiscordEvent";
 import DiscordGuild from "./DiscordGuild";
 import DiscordModule from "./DiscordModule";
 
-import type {
-	Client,
-	Interaction,
-	CacheType,
-	UserApplicationCommandData,
-	ChatInputApplicationCommandData,
-	ApplicationCommand
-} from "discord.js";
+import type { Client, Interaction, CacheType } from "discord.js";
 
 export interface ModuleLoaderOptions {
 	unknownCommandMessage?: string;
@@ -55,7 +48,7 @@ export default class DiscordModuleLoader {
 			this.commandCooldownMessage = options.commandCooldownMessage;
 
 		client.setMaxListeners(Infinity);
-		client.on("interactionCreate", int => this.handleInteraction(int));
+		client.on("interactionCreate", int => void this.handleInteraction(int));
 	}
 
 	async loadAll() {
@@ -88,9 +81,6 @@ export default class DiscordModuleLoader {
 
 			if (!(guild instanceof DiscordGuild))
 				throw new Error(`Guild ${folder} is not an Guild.`);
-
-			//* Guild disabled, continue
-			if (guild.disabled) continue;
 
 			if (!this.client.guilds.cache.get(guild.id))
 				throw new Error(`Guild ${guild.id} is not cached.`);
@@ -149,9 +139,6 @@ export default class DiscordModuleLoader {
 
 			if (!(module instanceof DiscordModule))
 				throw new Error(`Module ${folder} is not an Module`);
-
-			//* Module disabled, continue
-			if (module.disabled) continue;
 
 			if (this.modules.has(module.name))
 				throw new Error(`Cannot add ${module.name} more than once.`);
@@ -250,27 +237,39 @@ export default class DiscordModuleLoader {
 
 		const returnCommands: [string, DiscordCommand][] = [];
 		for (const file of commands) {
-			let command = (await import(resolve(dir, file))).default;
+			let discordCommand = (await import(resolve(dir, file))).default;
 
-			if (typeof command === "function") command = await command();
+			if (typeof discordCommand === "function")
+				discordCommand = await discordCommand();
 
-			if (!(command instanceof DiscordCommand))
+			if (!(discordCommand instanceof DiscordCommand))
 				throw new Error(`Command ${file} is not a Command`);
 
-			if (this.commands.has(command.name.toLowerCase()))
-				throw new Error(`Cannot add ${command.name} more than once.`);
+			if (this.commands.has(discordCommand.command.name.toLowerCase()))
+				throw new Error(
+					`Cannot add ${discordCommand.command.name} more than once.`
+				);
 
 			if (guildId) {
 				this.guilds
 					.get(guildId)!
-					.commands.set(command.name.toLowerCase(), command);
+					.commands.set(
+						discordCommand.command.name.toLowerCase(),
+						discordCommand
+					);
 
-				command.guildId = guildId;
+				discordCommand.guildId = guildId;
 			}
 
-			this.commands.set(command.name.toLowerCase(), command);
-			returnCommands.push([command.name.toLowerCase(), command]);
-			log("Loaded command %s", command.name);
+			this.commands.set(
+				discordCommand.command.name.toLowerCase(),
+				discordCommand
+			);
+			returnCommands.push([
+				discordCommand.command.name.toLowerCase(),
+				discordCommand
+			]);
+			log("Loaded command %s", discordCommand.command.name);
 		}
 
 		if (!subDirectoryOf) {
@@ -295,30 +294,12 @@ export default class DiscordModuleLoader {
 			log = this.log.extend("SlashCommands");
 
 		log("Setting %d global commands...", localGlobalCommands.size);
-		const globalCommands = await this.client.application.commands.set(
-			localGlobalCommands
-				.map(c => {
-					if (c.hasUserCommand)
-						return [
-							this.convertToGlobalCommand(c),
-							this.convertToUserCommand(c)
-						];
-					return [this.convertToGlobalCommand(c)];
-				})
-				.flat()
+		await this.client.application.commands.set(
+			localGlobalCommands.map(c => c.command)
 		);
 
 		for (const [id, guild] of this.client.guilds.cache) {
-			const commands: [ApplicationCommand<{}>, DiscordCommand][] =
-					globalCommands
-						.map((c): [ApplicationCommand<{}>, DiscordCommand] => [
-							c,
-							localGlobalCommands.find(
-								g => g.name.toLowerCase() === c.name.toLowerCase()
-							)!
-						])
-						.filter(c => !!c[1].permissions),
-				dGuild = this.guilds.get(id);
+			const dGuild = this.guilds.get(id);
 
 			if (dGuild?.commands.size)
 				log(
@@ -327,66 +308,8 @@ export default class DiscordModuleLoader {
 					guild.name
 				);
 
-			const gCommands = await guild.commands.set(
-				dGuild?.commands
-					.map(c => {
-						if (c.hasUserCommand)
-							return [
-								this.convertToGlobalCommand(c),
-								this.convertToUserCommand(c)
-							];
-						return [this.convertToGlobalCommand(c)];
-					})
-					.flat() ?? []
-			);
-
-			commands.push(
-				...gCommands
-					.map((c): [ApplicationCommand<{}>, DiscordCommand] => [
-						c,
-						dGuild?.commands.find(
-							g => g.name.toLowerCase() === c.name.toLowerCase()
-						)!
-					])
-					.filter(c => !!c[1].permissions)
-			);
-
-			if (commands.length) {
-				log(
-					"Setting permissions for %d commands in guild %s...",
-					commands.length,
-					guild.name
-				);
-				await guild.commands.permissions.set({
-					fullPermissions: commands.map(c => ({
-						id: c[0].id,
-						permissions: c[1].permissions!
-					}))
-				});
-			}
+			await guild.commands.set(dGuild?.commands.map(c => c.command) ?? []);
 		}
-	}
-
-	private convertToUserCommand(
-		command: DiscordCommand
-	): UserApplicationCommandData {
-		return {
-			name: `${command.name.charAt(0).toUpperCase()}${command.name.slice(1)}`,
-			defaultPermission: command.defaultPermission,
-			type: "USER"
-		};
-	}
-
-	private convertToGlobalCommand(
-		command: DiscordCommand
-	): ChatInputApplicationCommandData {
-		return {
-			name: command.name,
-			options: command.options,
-			description: command.description,
-			defaultPermission: command.defaultPermission,
-			type: "CHAT_INPUT"
-		};
 	}
 
 	private async handleInteraction(interaction: Interaction<CacheType>) {
@@ -402,15 +325,22 @@ export default class DiscordModuleLoader {
 			}
 		}
 
-		if (interaction.isCommand() || interaction.isContextMenu()) {
-			const command = this.commands.get(interaction.commandName.toLowerCase());
-			if (!command)
+		if (
+			interaction.isCommand() ||
+			interaction.isContextMenuCommand() ||
+			interaction.isChatInputCommand() ||
+			interaction.isUserContextMenuCommand()
+		) {
+			const discordCommand = this.commands.get(
+				interaction.commandName.toLowerCase()
+			);
+			if (!discordCommand)
 				return await interaction.reply({
 					content: this.unknownCommandMessage,
 					ephemeral: true
 				});
 
-			if (command.disabled)
+			if (discordCommand.disabled)
 				return await interaction.reply({
 					content: this.disabledCommandMessage,
 					ephemeral: true
@@ -418,13 +348,13 @@ export default class DiscordModuleLoader {
 
 			let allowed = true;
 			if (
-				command.channelDenylist &&
-				command.channelDenylist.includes(interaction.channelId)
+				discordCommand.channelDenylist &&
+				discordCommand.channelDenylist.includes(interaction.channelId)
 			)
 				allowed = false;
 			else if (
-				command.channelAllowlist &&
-				!command.channelAllowlist.includes(interaction.channelId)
+				discordCommand.channelAllowlist &&
+				!discordCommand.channelAllowlist.includes(interaction.channelId)
 			)
 				allowed = false;
 
@@ -437,13 +367,14 @@ export default class DiscordModuleLoader {
 				});
 			}
 
-			if (command.cooldown) {
-				if (!this.cooldowns.has(command.name))
-					this.cooldowns.set(command.name, new Collection());
-				const timestamps = this.cooldowns.get(command.name)!;
+			if (discordCommand.cooldown) {
+				if (!this.cooldowns.has(discordCommand.command.name))
+					this.cooldowns.set(discordCommand.command.name, new Collection());
+				const timestamps = this.cooldowns.get(discordCommand.command.name)!;
 				if (timestamps.has(interaction.user.id)) {
 					const expirationTime =
-						timestamps.get(interaction.user.id)! + command.cooldown * 1000;
+						timestamps.get(interaction.user.id)! +
+						discordCommand.cooldown * 1000;
 					if (Date.now() < expirationTime) {
 						return await interaction.reply({
 							content: this.commandCooldownMessage.replace(
@@ -458,12 +389,12 @@ export default class DiscordModuleLoader {
 				timestamps.set(interaction.user.id, Date.now());
 				setTimeout(
 					() => timestamps.delete(interaction.user.id),
-					command.cooldown * 1000
+					discordCommand.cooldown * 1000
 				);
 			}
 
 			try {
-				await command.execute(interaction);
+				await discordCommand.execute(interaction);
 			} catch (err) {
 				console.error(err);
 			}
