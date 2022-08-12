@@ -1,59 +1,36 @@
 import BaseClass from "./BaseClass";
 
 import type {
-	ApplicationCommandOptionData,
-	ApplicationCommandPermissionData,
+	ApplicationCommandPermissions,
 	Awaitable,
-	ChatInputApplicationCommandData,
-	CommandInteraction,
 	Snowflake,
-	ContextMenuInteraction,
-	AutocompleteInteraction
+	Interaction,
+	ApplicationCommandData
 } from "discord.js";
 
 export default class DiscordCommand extends BaseClass {
-	guildId?: string;
-	name: string;
-	description: string;
-	defaultPermission?: boolean;
-	options?: ApplicationCommandOptionData[];
-	cooldown?: number;
+	guildId?: Snowflake;
+	command: ApplicationCommandData;
 	channelAllowlist?: Snowflake[];
 	channelDenylist?: Snowflake[];
-	permissions?: ApplicationCommandPermissionData[];
-	hasUserCommand?: boolean;
-	execute: (
-		interaction:
-			| CommandInteraction
-			| ContextMenuInteraction
-			| AutocompleteInteraction
-	) => Awaitable<any>;
+	cooldown?: number;
+	execute: (interaction: Interaction) => Awaitable<any>;
 
 	constructor(options: CommandOptions) {
 		super();
-		this.name = options.name;
-		this.description = options.description;
-		this.defaultPermission = options.defaultPermission;
-		this.options = options.options;
-		this.cooldown = options.cooldown;
+		this.command = options.command;
 		this.channelAllowlist = options.channelAllowlist;
 		this.channelDenylist = options.channelDenylist;
-		this.permissions = options.permissions;
-		this.hasUserCommand = options.hasUserCommand;
+		this.cooldown = options.cooldown;
 		this.execute = options.execute;
 	}
 }
 
-export interface CommandOptions extends ChatInputApplicationCommandData {
-	cooldown?: number;
+export interface CommandOptions {
+	command: ApplicationCommandData;
+	permissions?: ApplicationCommandPermissions[];
 	channelAllowlist?: Snowflake[];
 	channelDenylist?: Snowflake[];
-	permissions?: ApplicationCommandPermissionData[];
-	hasUserCommand?: boolean;
-	execute(
-		interaction:
-			| CommandInteraction
-			| ContextMenuInteraction
-			| AutocompleteInteraction
-	): Awaitable<any>;
+	cooldown?: number;
+	execute(interaction: Interaction): Awaitable<any>;
 }
