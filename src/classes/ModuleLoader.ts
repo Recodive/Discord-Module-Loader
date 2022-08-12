@@ -52,12 +52,10 @@ export default class DiscordModuleLoader {
 	}
 
 	async loadAll() {
-		await Promise.all([
-			this.loadCommands(),
-			this.loadEvents(),
-			this.loadModules(),
-			this.loadGuilds()
-		]);
+		await this.loadCommands();
+		await this.loadEvents();
+		await this.loadModules();
+		await this.loadGuilds();
 	}
 
 	async loadGuilds(dir = "guilds") {
@@ -327,7 +325,12 @@ export default class DiscordModuleLoader {
 			}
 		}
 
-		if (interaction.isCommand() || interaction.isContextMenuCommand()) {
+		if (
+			interaction.isCommand() ||
+			interaction.isContextMenuCommand() ||
+			interaction.isChatInputCommand() ||
+			interaction.isUserContextMenuCommand()
+		) {
 			const discordCommand = this.commands.get(
 				interaction.commandName.toLowerCase()
 			);
