@@ -32,4 +32,4 @@ jobs:
         run: pnpm i
 
       - name: Test package
-        run: tsc
+        run: pnpm exec tsc
