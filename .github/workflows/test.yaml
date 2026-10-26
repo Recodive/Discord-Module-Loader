@@ -10,10 +10,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Node v16
+      - name: Install Node v24
         uses: actions/setup-node@v3.4.1
         with:
-          node-version: 16
+          node-version: 24.22.1
 
       - name: Cache pnpm modules
         uses: actions/cache@v3
@@ -24,12 +24,12 @@ jobs:
             ${{ runner.os }}-
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2.2.2
+        uses: pnpm/action-setup@v4
         with:
-          version: 6.0.2
+          version: 8.15.9
 
       - name: Install dependencies
         run: pnpm i
 
       - name: Test package
-        run: tsc
+        run: pnpm exec tsc
